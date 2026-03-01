@@ -39,6 +39,7 @@
   border-radius: 10px;
   line-height: 1.4;
   font-size: 14px;
+  color: #111827;
 }
 
 .message p {
@@ -57,6 +58,23 @@
   border: 1px solid #cddcff;
 }
 
+.message.system {
+  align-self: center;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.message.system.info {
+  color: #0369a1;
+}
+
+.message.system.error {
+  color: #dc2626;
+}
+
 .chat-input-bar {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -71,6 +89,12 @@
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
+  color: #111827;
+  background: #ffffff;
+}
+
+.chat-input-bar input::placeholder {
+  color: #6b7280;
 }
 
 .chat-input-bar button {
