@@ -19,6 +19,84 @@ type ChatResponse = {
   reply?: string
 }
 
+type SendChatOptions = {
+  onDelta?: (delta: string) => void
+}
+
+const extractTextDelta = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    return ''
+  }
+
+  const record = payload as Record<string, unknown>
+
+  if (record.type === 'text-delta' && typeof record.delta === 'string') {
+    return record.delta
+  }
+
+  if (record.type === 'output_text_delta' && typeof record.delta === 'string') {
+    return record.delta
+  }
+
+  if (typeof record.delta === 'string' && String(record.type ?? '').includes('text')) {
+    return record.delta
+  }
+
+  return ''
+}
+
+const parseUIMessageStreamToText = async (
+  response: Response,
+  options?: SendChatOptions,
+): Promise<string> => {
+  const stream = response.body
+  if (!stream) {
+    return ''
+  }
+
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  let replyText = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) {
+      break
+    }
+
+    pending += decoder.decode(value, { stream: true })
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim()
+      if (!line.startsWith('data:')) {
+        continue
+      }
+
+      const data = line.slice(5).trim()
+      if (!data || data === '[DONE]') {
+        continue
+      }
+
+      try {
+        const parsed = JSON.parse(data)
+        const delta = extractTextDelta(parsed)
+        if (!delta) {
+          continue
+        }
+        replyText += delta
+        options?.onDelta?.(delta)
+      } catch {
+        continue
+      }
+    }
+  }
+
+  return replyText.trim()
+}
+
 export const createSession = async (
   payload: CreateSessionPayload,
 ): Promise<CreateSessionResponse> => {
@@ -37,6 +115,7 @@ export const createSession = async (
 
 export const sendChatMessage = async (
   payload: ChatPayload,
+  options?: SendChatOptions,
 ): Promise<ChatResponse> => {
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: 'POST',
@@ -48,5 +127,8 @@ export const sendChatMessage = async (
     throw new Error('Chat request failed')
   }
 
-  return (await response.json()) as ChatResponse
+  const reply = await parseUIMessageStreamToText(response, options)
+  return {
+    reply,
+  }
 }

@@ -1,4 +1,6 @@
 import type { FastifyPluginAsync } from "fastify"
+import { streamText } from "ai"
+import { chatStream } from "../agent/index.js"
 import * as sessionService from "../services/sessionService.js"
 
 const chatRoutes: FastifyPluginAsync = async (app) => {
@@ -33,17 +35,30 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
 
     await sessionService.appendMessage(session_id, "user", message)
 
-    const assistantReply = `收到你的訊息：${message}`
-    await sessionService.appendMessage(session_id, "assistant", assistantReply)
+    const latestSession = await sessionService.getSession(session_id)
 
-    const updatedSession = await sessionService.getSession(session_id)
-
-    return {
-      session_id,
-      reply: assistantReply,
-      highlights: updatedSession.highlights,
-      message_count: updatedSession.messages.length,
+    let result: ReturnType<typeof streamText>
+    try {
+      result = streamText({
+        ...(await chatStream({
+          messages: latestSession.messages,
+          article: latestSession.content,
+          highlights: latestSession.highlights,
+        })),
+        onFinish: async ({ text }) => {
+          if (text.trim().length > 0) {
+            await sessionService.appendMessage(session_id, "assistant", text)
+          }
+        },
+      })
+    } catch (error) {
+      request.log.error({ error }, "Gemini request failed")
+      return reply.status(502).send({
+        error: "failed to get response from model",
+      })
     }
+
+    return reply.send(result.toUIMessageStreamResponse())
   })
 }
 

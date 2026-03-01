@@ -1,7 +1,15 @@
 import Fastify from "fastify"
 import cors from "@fastify/cors"
+import dotenv from "dotenv"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import sessionRoutes from "./routes/session.js"
 import chatRoutes from "./routes/chat.js"
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
+const backendRoot = resolve(currentDir, "..")
+
+dotenv.config({ path: resolve(backendRoot, ".env") })
 
 const app = Fastify({ logger: true })
 const port = Number(process.env.PORT ?? 8000)

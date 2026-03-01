@@ -7,6 +7,7 @@ type ChatMessage = {
   role: 'user' | 'assistant' | 'system'
   level?: 'info' | 'error'
   content: string
+  streaming?: boolean
 }
 
 type TabSession = {
@@ -29,6 +30,41 @@ function App() {
 
   const appendMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
+  }
+
+  const appendAssistantDelta = (delta: string) => {
+    setMessages((prev) => {
+      const index = prev.findLastIndex((message) => message.role === 'assistant' && message.streaming)
+      if (index === -1) {
+        return prev
+      }
+
+      const next = [...prev]
+      const target = next[index]
+      next[index] = {
+        ...target,
+        content: `${target.content}${delta}`,
+      }
+      return next
+    })
+  }
+
+  const finishAssistantStreaming = (fallbackText: string) => {
+    setMessages((prev) => {
+      const index = prev.findLastIndex((message) => message.role === 'assistant' && message.streaming)
+      if (index === -1) {
+        return prev
+      }
+
+      const next = [...prev]
+      const target = next[index]
+      next[index] = {
+        ...target,
+        content: target.content || fallbackText,
+        streaming: false,
+      }
+      return next
+    })
   }
 
   const createSessionForCurrentTab = async (): Promise<{
@@ -92,20 +128,21 @@ function App() {
             content: 'Detected tab/page change. Started a new session for this URL.',
           },
           { role: 'user', content: message },
+          { role: 'assistant', content: '', streaming: true },
         ])
       } else {
         appendMessage({ role: 'user', content: message })
+        appendMessage({ role: 'assistant', content: '', streaming: true })
       }
 
       const data = await sendChatMessage({
         session_id: sessionId,
         message,
         highlights: [],
+      }, {
+        onDelta: appendAssistantDelta,
       })
-      appendMessage({
-        role: 'assistant',
-        content: data.reply ?? 'No response from backend',
-      })
+      finishAssistantStreaming(data.reply ?? 'No response from backend')
       setStatus('Ready')
     } catch (error) {
       appendMessage({
