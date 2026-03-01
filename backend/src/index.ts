@@ -1,5 +1,7 @@
 import Fastify from "fastify"
 import cors from "@fastify/cors"
+import sessionRoutes from "./routes/session.js"
+import chatRoutes from "./routes/chat.js"
 
 const app = Fastify({ logger: true })
 const port = Number(process.env.PORT ?? 8000)
@@ -12,6 +14,9 @@ await app.register(cors, {
 app.get("/health", async () => {
   return { ok: true }
 })
+
+await app.register(sessionRoutes)
+await app.register(chatRoutes)
 
 try {
   await app.listen({ port, host })
