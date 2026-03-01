@@ -3,6 +3,7 @@ node_modules/
 *.egg-info/
 dist/
 build/
+test-results/
 
 # Environment variables
 .env
