@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import sessionRoutes from "./routes/session.js"
 import chatRoutes from "./routes/chat.js"
+import { registerRetentionService } from "./services/retentionJob.js"
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
 const backendRoot = resolve(currentDir, "..")
@@ -25,6 +26,7 @@ app.get("/health", async () => {
 
 await app.register(sessionRoutes)
 await app.register(chatRoutes)
+await registerRetentionService(app)
 
 try {
   await app.listen({ port, host })
