@@ -4,6 +4,10 @@ import { chatStream } from "../agent/index.js"
 import { listToolNames, toToolResultDetail } from "../agent/tools/utils/toolResultParsers.js"
 import * as sessionService from "../services/sessionService.js"
 
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === "string" && value.trim().length > 0
+}
+
 const chatRoutes: FastifyPluginAsync = async (app) => {
   app.post<{
     Body: {
@@ -57,8 +61,16 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
 
       const result = streamText({
         ...streamConfig,
-        onStepFinish: ({ stepNumber, toolCalls, toolResults, finishReason, text }) => {
+        onStepFinish: async ({ stepNumber, toolCalls, toolResults, finishReason, text }) => {
           const toolResultDetails = (toolResults ?? []).map(toToolResultDetail)
+          const notePaths = toolResultDetails
+            .filter((detail) => !detail.isError)
+            .map((detail) => detail.writePath)
+            .filter(isNonEmptyString)
+
+          for (const path of notePaths) {
+            await sessionService.addNotePathDistinct(session_id, path)
+          }
 
           request.log.info(
             {

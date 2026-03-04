@@ -125,4 +125,26 @@ describe("sessionService", () => {
       await app.close()
     })
   })
+
+  it("preserves messages, highlights, and notes under concurrent writes", async () => {
+    await withTempSessions(async () => {
+      vi.resetModules()
+
+      const sessionService = await import("../services/sessionService.js")
+      const session = await sessionService.createSession("https://example.com", "content")
+
+      await Promise.all([
+        sessionService.appendMessage(session.session_id, "user", "concurrent message"),
+        sessionService.addHighlightDistinct(session.session_id, "important quote"),
+        sessionService.addNotePathDistinct(session.session_id, "/notes/learn.md"),
+      ])
+
+      const updated = await sessionService.getSession(session.session_id)
+      expect(updated.messages).toEqual([
+        { role: "user", content: "concurrent message" },
+      ])
+      expect(updated.highlights.map((highlight) => highlight.text)).toEqual(["important quote"])
+      expect(updated.notes.map((note) => note.content)).toEqual(["/notes/learn.md"])
+    })
+  })
 })

@@ -33,12 +33,40 @@ export type SessionFile = {
 }
 
 const sessionsDir = process.env.SESSIONS_DIR ?? "./sessions"
+const sessionWriteQueues = new Map<string, Promise<void>>()
 
 const sessionPath = (sessionId: string) => join(sessionsDir, `${sessionId}.json`)
 
 const writeSession = async (session: SessionFile) => {
   await mkdir(sessionsDir, { recursive: true })
   await writeFile(sessionPath(session.session_id), JSON.stringify(session, null, 2), "utf8")
+}
+
+const runSessionMutation = async <T>(
+  sessionId: string,
+  mutation: (session: SessionFile) => Promise<T> | T,
+): Promise<T> => {
+  const previous = sessionWriteQueues.get(sessionId) ?? Promise.resolve()
+
+  let releaseCurrent!: () => void
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve
+  })
+  sessionWriteQueues.set(sessionId, previous.then(() => current))
+
+  await previous
+
+  try {
+    const session = await getSession(sessionId)
+    const result = await mutation(session)
+    await writeSession(session)
+    return result
+  } finally {
+    releaseCurrent()
+    if (sessionWriteQueues.get(sessionId) === current) {
+      sessionWriteQueues.delete(sessionId)
+    }
+  }
 }
 
 export async function createSession(url: string, content: string): Promise<SessionFile> {
@@ -69,32 +97,73 @@ export async function appendMessage(
   role: Role,
   content: string,
 ): Promise<void> {
-  const session = await getSession(sessionId)
-  session.messages.push({ role, content })
-  session.last_message_at = new Date().toISOString()
-  await writeSession(session)
+  await runSessionMutation(sessionId, (session) => {
+    session.messages.push({ role, content })
+    session.last_message_at = new Date().toISOString()
+  })
 }
 
 export async function addHighlight(sessionId: string, text: string): Promise<string> {
-  const session = await getSession(sessionId)
-  const highlight: Highlight = {
-    id: uuid(),
-    text,
-    created_at: new Date().toISOString(),
+  return runSessionMutation(sessionId, (session) => {
+    const highlight: Highlight = {
+      id: uuid(),
+      text,
+      created_at: new Date().toISOString(),
+    }
+
+    session.highlights.push(highlight)
+    return highlight.id
+  })
+}
+
+export async function addHighlightDistinct(sessionId: string, text: string): Promise<boolean> {
+  const normalizedText = text.trim()
+  if (!normalizedText) {
+    return false
   }
 
-  session.highlights.push(highlight)
-  await writeSession(session)
+  return runSessionMutation(sessionId, (session) => {
+    const exists = session.highlights.some((highlight) => highlight.text === normalizedText)
+    if (exists) {
+      return false
+    }
 
-  return highlight.id
+    session.highlights.push({
+      id: uuid(),
+      text: normalizedText,
+      created_at: new Date().toISOString(),
+    })
+    return true
+  })
+}
+
+export async function addNotePathDistinct(sessionId: string, path: string): Promise<boolean> {
+  const normalizedPath = path.trim()
+  if (!normalizedPath) {
+    return false
+  }
+
+  return runSessionMutation(sessionId, (session) => {
+    const exists = session.notes.some((note) => note.content === normalizedPath)
+    if (exists) {
+      return false
+    }
+
+    session.notes.push({
+      id: uuid(),
+      content: normalizedPath,
+      created_at: new Date().toISOString(),
+    })
+    return true
+  })
 }
 
 export async function setHighlights(sessionId: string, texts: string[]): Promise<void> {
-  const session = await getSession(sessionId)
-  session.highlights = texts.map((text) => ({
-    id: uuid(),
-    text,
-    created_at: new Date().toISOString(),
-  }))
-  await writeSession(session)
+  await runSessionMutation(sessionId, (session) => {
+    session.highlights = texts.map((text) => ({
+      id: uuid(),
+      text,
+      created_at: new Date().toISOString(),
+    }))
+  })
 }

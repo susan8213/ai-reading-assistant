@@ -1,6 +1,7 @@
 import { tool } from "ai"
 import { z } from "zod"
 import type { WebSocket } from "@fastify/websocket"
+import { addHighlightDistinct } from "../../services/sessionService.js"
 
 // Shared map — websocket route registers connections here; highlight tool reads from it
 export const websocketConnections = new Map<string, WebSocket>()
@@ -18,6 +19,8 @@ export const highlightTool = (sessionId: string) =>
       "Use this tool whenever the user expresses highlight/mark intent (e.g., asks to mark key points or key sentences). The text must be an exact quote from the current article content.",
     inputSchema: highlightParams,
     execute: async ({ text }: { text: string; reason?: string }) => {
+      await addHighlightDistinct(sessionId, text)
+
       const ws = websocketConnections.get(sessionId)
       if (!ws) {
         console.warn("[highlightTool] no websocket connection", {
