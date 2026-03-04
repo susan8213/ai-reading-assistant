@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify"
 import { streamText } from "ai"
 import { chatStream } from "../agent/index.js"
+import { listToolNames, toToolResultDetail } from "../agent/tools/utils/toolResultParsers.js"
 import * as sessionService from "../services/sessionService.js"
 
 const chatRoutes: FastifyPluginAsync = async (app) => {
@@ -37,28 +38,72 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
 
     const latestSession = await sessionService.getSession(session_id)
 
-    let result: ReturnType<typeof streamText>
     try {
-      result = streamText({
-        ...(await chatStream({
-          messages: latestSession.messages,
-          article: latestSession.content,
-          highlights: latestSession.highlights,
-        })),
-        onFinish: async ({ text }) => {
+      const { cleanup, ...streamConfig } = await chatStream({
+        sessionId: session_id,
+        messages: latestSession.messages,
+        article: latestSession.content,
+        highlights: latestSession.highlights,
+      })
+
+      request.log.info(
+        {
+          session_id,
+          availableTools: listToolNames((streamConfig as { tools?: unknown }).tools),
+          messagePreview: message.slice(0, 120),
+        },
+        "chat stream initialized",
+      )
+
+      const result = streamText({
+        ...streamConfig,
+        onStepFinish: ({ stepNumber, toolCalls, toolResults, finishReason, text }) => {
+          const toolResultDetails = (toolResults ?? []).map(toToolResultDetail)
+
+          request.log.info(
+            {
+              session_id,
+              stepNumber,
+              finishReason,
+              toolCalls: toolCalls?.map((call) => call.toolName) ?? [],
+              toolCallInputs:
+                toolCalls?.map((call) => ({ toolName: call.toolName, input: call.input })) ?? [],
+              toolResultsCount: toolResults?.length ?? 0,
+              toolResultDetails,
+              text,
+            },
+            "chat stream step finished",
+          )
+        },
+        onFinish: async ({ text, toolCalls, stepNumber, finishReason }) => {
+          await cleanup()
           if (text.trim().length > 0) {
             await sessionService.appendMessage(session_id, "assistant", text)
           }
+
+          request.log.info(
+            {
+              session_id,
+              stepNumber,
+              finishReason,
+              toolCalls: toolCalls?.map((call) => call.toolName) ?? [],
+              text,
+            },
+            "chat stream finished",
+          )
+        },
+        onError: async (error) => {
+          await cleanup()
+          request.log.error({ session_id, error }, "chat stream error")
         },
       })
+      return reply.send(result.toUIMessageStreamResponse())
     } catch (error) {
       request.log.error({ error }, "Gemini request failed")
       return reply.status(502).send({
         error: "failed to get response from model",
       })
     }
-
-    return reply.send(result.toUIMessageStreamResponse())
   })
 }
 
