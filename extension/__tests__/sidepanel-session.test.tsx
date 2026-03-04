@@ -43,7 +43,7 @@ describe('sidepanel session behavior', () => {
 
     render(<App />)
 
-    const input = screen.getByPlaceholderText('Ask about this page...')
+    const input = screen.getByLabelText('Chat input')
     const sendButton = screen.getByRole('button', { name: 'Send' })
 
     await user.type(input, 'hello from tab 1')
@@ -88,7 +88,7 @@ describe('sidepanel session behavior', () => {
 
     render(<App />)
 
-    const input = screen.getByPlaceholderText('Ask about this page...')
+    const input = screen.getByLabelText('Chat input')
     const sendButton = screen.getByRole('button', { name: 'Send' })
 
     await user.type(input, 'first same-url message')
@@ -135,7 +135,7 @@ describe('sidepanel session behavior', () => {
 
     render(<App />)
 
-    const input = screen.getByPlaceholderText('Ask about this page...')
+    const input = screen.getByLabelText('Chat input')
     const sendButton = screen.getByRole('button', { name: 'Send' })
 
     await user.type(input, 'first url message')

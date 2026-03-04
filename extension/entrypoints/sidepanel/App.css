@@ -42,8 +42,46 @@
   color: #111827;
 }
 
-.message p {
-  margin: 0;
+.message > :first-child {
+  margin-top: 0;
+}
+
+.message > :last-child {
+  margin-bottom: 0;
+}
+
+.message p,
+.message ul,
+.message ol,
+.message pre,
+.message blockquote,
+.message table {
+  margin: 0 0 8px;
+}
+
+.message ul,
+.message ol {
+  padding-left: 20px;
+}
+
+.message code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.message pre {
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.message pre code {
+  background: transparent;
+  padding: 0;
 }
 
 .message.assistant {
@@ -78,32 +116,60 @@
 .chat-input-bar {
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: end;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid #e5e7eb;
   background: #ffffff;
 }
 
-.chat-input-bar input {
+.chat-input-bar textarea {
   border: 1px solid #d1d5db;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
+  line-height: 1.4;
   color: #111827;
   background: #ffffff;
+  min-height: 40px;
+  max-height: 180px;
+  resize: none;
+  overflow-y: auto;
 }
 
-.chat-input-bar input::placeholder {
+.chat-input-bar textarea::placeholder {
   color: #6b7280;
+}
+
+.chat-input-bar textarea:disabled {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.chat-input-bar textarea:disabled::placeholder {
+  color: #9ca3af;
 }
 
 .chat-input-bar button {
   border: 0;
   border-radius: 8px;
+  height: 40px;
+  min-width: 84px;
   padding: 0 14px;
   font-size: 14px;
   font-weight: 600;
   background: #2563eb;
   color: #ffffff;
   cursor: pointer;
+  align-self: end;
+  white-space: nowrap;
+}
+
+.chat-input-bar button:disabled {
+  background: #93c5fd;
+  color: #eff6ff;
+  cursor: not-allowed;
+  opacity: 1;
 }

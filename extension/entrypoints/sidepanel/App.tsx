@@ -1,4 +1,6 @@
-import { useRef, useState, type KeyboardEventHandler } from 'react';
+import { useEffect, useRef, useState, type KeyboardEventHandler } from 'react';
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './App.css';
 import { createSession, sendChatMessage } from './utils/api';
 import { getActiveTab, sendMessageToTab } from './utils/tab';
@@ -37,10 +39,30 @@ const notifySessionInitialized = (sessionId: string) => {
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
-  const [status, setStatus] = useState('Ready')
   const [isSending, setIsSending] = useState(false)
 
   const tabSessionsRef = useRef<Map<number, TabSession>>(new Map())
+  const messagesContainerRef = useRef<HTMLElement | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) {
+      return
+    }
+
+    container.scrollTop = container.scrollHeight
+  }, [messages])
+
+  useEffect(() => {
+    const textarea = inputRef.current
+    if (!textarea) {
+      return
+    }
+
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`
+  }, [input])
 
   const appendMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
@@ -130,7 +152,6 @@ function App() {
 
     setInput('')
     setIsSending(true)
-    setStatus('Sending...')
 
     try {
       const { sessionId, isNewSession } = await createSessionForCurrentTab()
@@ -159,21 +180,26 @@ function App() {
         onDelta: appendAssistantDelta,
       })
       finishAssistantStreaming(data.reply ?? 'No response from backend')
-      setStatus('Ready')
     } catch (error) {
       appendMessage({
         role: 'system',
         level: 'error',
         content: `Error: ${(error as Error).message}`,
       })
-      setStatus('Error')
     } finally {
       setIsSending(false)
     }
   }
 
-  const onInputKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
-    if (event.key === 'Enter') {
+  const onInputKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+    const isComposing =
+      event.nativeEvent.isComposing
+      || (event.nativeEvent as unknown as { keyCode?: number }).keyCode === 229
+
+    const shouldSend = event.key === 'Enter' && (event.metaKey || event.ctrlKey)
+
+    if (shouldSend && !isComposing) {
+      event.preventDefault()
       void onSend()
     }
   }
@@ -182,29 +208,29 @@ function App() {
     <div className="chat-shell">
       <header className="chat-header">
         <h1>AI Reading Assistant</h1>
-        <span className="status">{status}</span>
       </header>
 
-      <main className="chat-messages">
+      <main className="chat-messages" ref={messagesContainerRef}>
         {messages.map((message, index) => (
           <div key={index} className={['message', message.role, message.level].filter(Boolean).join(' ')}>
-            <p>{message.content}</p>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         ))}
       </main>
 
       <footer className="chat-input-bar">
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
           placeholder="Ask about this page..."
           aria-label="Chat input"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={onInputKeyDown}
           disabled={isSending}
+          rows={1}
         />
         <button type="button" onClick={() => void onSend()} disabled={isSending}>
-          Send
+          {isSending ? 'Sending' : 'Send'}
         </button>
       </footer>
     </div>
