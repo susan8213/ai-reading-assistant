@@ -41,4 +41,23 @@ describe('highlightText', () => {
 
     expect(document.body.innerHTML).toBe(before)
   })
+
+  it('highlights text even when sentence spans nested HTML tags', () => {
+    document.body.innerHTML = '<p>This is <strong>important</strong> text in article.</p>'
+
+    const count = highlightText('important text')
+
+    expect(count).toBe(1)
+    expect(document.querySelectorAll('mark.ai-highlight')).toHaveLength(1)
+    expect(document.body.textContent).toContain('important text')
+  })
+
+  it('highlights text containing special symbols', () => {
+    document.body.innerHTML = '<p>Attention (Q&A) [v2.0] is critical.</p>'
+
+    const count = highlightText('Attention (Q&A) [v2.0]')
+
+    expect(count).toBe(1)
+    expect(document.querySelector('mark.ai-highlight')?.textContent).toBe('Attention (Q&A) [v2.0]')
+  })
 })

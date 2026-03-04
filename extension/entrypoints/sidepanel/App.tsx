@@ -20,6 +20,20 @@ const INITIAL_MESSAGE: ChatMessage = {
   content: 'Hi! I can help summarize this page.',
 }
 
+const notifySessionInitialized = (sessionId: string) => {
+  const runtime = (globalThis as {
+    chrome?: {
+      runtime?: {
+        sendMessage?: (message: { type: string; session_id: string }) => void
+      }
+    }
+  }).chrome?.runtime
+
+  if (typeof runtime?.sendMessage === 'function') {
+    runtime.sendMessage({ type: 'init_session', session_id: sessionId })
+  }
+}
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
@@ -99,6 +113,8 @@ function App() {
       url: currentUrl,
       sessionId: data.session_id,
     })
+
+    notifySessionInitialized(data.session_id)
 
     return {
       sessionId: data.session_id,
